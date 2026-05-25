@@ -15,34 +15,10 @@ export default function AnimatedBackground() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Đã giảm tốc độ chuyển động xuống chậm hơn (15-20 giây) để tạo cảm giác Chill
-  // Đồng thời giảm quãng đường di chuyển (x, y) để hiệu ứng mượt mà không bị chóng mặt
-  const blob1Variants = {
-    animate: isMobile ? {} : {
-      x: [0, 100, 0, -50, 0],
-      y: [0, -50, 100, 20, 0],
-      scale: [1, 1.1, 1, 0.9, 1],
-      transition: { duration: 15, repeat: Infinity, ease: "linear" as const }
-    }
-  };
-
-  const blob2Variants = {
-    animate: isMobile ? {} : {
-      x: [0, -100, 50, 0],
-      y: [0, 100, -50, 0],
-      scale: [1, 0.9, 1.1, 1],
-      transition: { duration: 18, repeat: Infinity, ease: "linear" as const }
-    }
-  };
-
-  const blob3Variants = {
-    animate: isMobile ? {} : {
-      x: [0, 50, -100, 20, 0],
-      y: [0, -50, -20, 100, 0],
-      scale: [1, 1.2, 0.9, 1],
-      transition: { duration: 20, repeat: Infinity, ease: "linear" as const }
-    }
-  };
+  // Đã tắt hiệu ứng di chuyển nền theo yêu cầu để giảm giật lag và chống rối mắt
+  const blob1Variants = { animate: {} };
+  const blob2Variants = { animate: {} };
+  const blob3Variants = { animate: {} };
 
   return (
     <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none bg-gray-950">

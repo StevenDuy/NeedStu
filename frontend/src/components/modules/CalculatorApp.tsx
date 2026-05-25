@@ -4,12 +4,15 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence, useDragControls, useMotionValue, useSpring } from 'framer-motion';
 import { X, Minus, Plus, X as Multiply, Divide, Equal, Delete, History } from 'lucide-react';
 
+import { useIsMobile } from '@/hooks/useIsMobile';
+
 interface CalculatorAppProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
 export default function CalculatorApp({ isOpen, onClose }: CalculatorAppProps) {
+  const isMobile = useIsMobile();
   const [equation, setEquation] = useState('0');
   const [result, setResult] = useState('');
   const [isCalculated, setIsCalculated] = useState(false);
@@ -21,6 +24,7 @@ export default function CalculatorApp({ isOpen, onClose }: CalculatorAppProps) {
   const dragControls = useDragControls();
   const historyDragControls = useDragControls(); // Thêm bộ điều khiển kéo thả cho bảng lịch sử
   const constraintsRef = React.useRef(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
   const isComposing = React.useRef(false); // Cờ theo dõi trạng thái bộ gõ tiếng Việt (IME)
 
   // --- HỆ THỐNG KÉO THẢ TRỄ (SMOOTH FOLLOW) ---
@@ -36,6 +40,23 @@ export default function CalculatorApp({ isOpen, onClose }: CalculatorAppProps) {
       setEquation(num);
       setResult('');
       setIsCalculated(false);
+      return;
+    }
+
+    const input = inputRef.current;
+    if (input && document.activeElement === input) {
+      const start = input.selectionStart || 0;
+      const end = input.selectionEnd || 0;
+      
+      setEquation(prev => {
+        if (prev === '0' && start === end && start === 1) {
+          setTimeout(() => input.setSelectionRange(num.length, num.length), 0);
+          return num;
+        }
+        const newEq = prev.slice(0, start) + num + prev.slice(end);
+        setTimeout(() => input.setSelectionRange(start + num.length, start + num.length), 0);
+        return newEq;
+      });
     } else {
       setEquation(prev => prev === '0' ? num : prev + num);
     }
@@ -43,12 +64,33 @@ export default function CalculatorApp({ isOpen, onClose }: CalculatorAppProps) {
 
   const handleOperator = (op: string) => {
     if (isCalculated) {
-      // Tính tiếp với kết quả cũ
       setEquation(result + ' ' + op + ' ');
       setResult('');
       setIsCalculated(false);
+      return;
+    }
+
+    const input = inputRef.current;
+    if (input && document.activeElement === input) {
+      const start = input.selectionStart || 0;
+      const end = input.selectionEnd || 0;
+      
+      setEquation(prev => {
+        let before = prev.slice(0, start);
+        const after = prev.slice(end);
+        
+        if (/[+\-×÷*/]\s*$/.test(before)) {
+          before = before.replace(/[+\-×÷*/]\s*$/, op + ' ');
+        } else {
+          if (before.length > 0 && !before.endsWith(' ')) before += ' ';
+          before += op + ' ';
+        }
+        
+        const newEq = before + after;
+        setTimeout(() => input.setSelectionRange(before.length, before.length), 0);
+        return newEq;
+      });
     } else {
-      // Thay đổi dấu nếu vừa gõ dấu khác
       if (/[+\-×÷*/]\s*$/.test(equation)) {
         setEquation(prev => prev.replace(/[+\-×÷*/]\s*$/, op + ' '));
       } else {
@@ -106,7 +148,40 @@ export default function CalculatorApp({ isOpen, onClose }: CalculatorAppProps) {
       setIsCalculated(false);
       return;
     }
-    setEquation(prev => prev.length > 1 ? prev.trimEnd().slice(0, -1).trimEnd() : '0');
+
+    const input = inputRef.current;
+    if (input && document.activeElement === input) {
+      const start = input.selectionStart || 0;
+      const end = input.selectionEnd || 0;
+      
+      setEquation(prev => {
+        if (start === end && start > 0) {
+          let before = prev.slice(0, start);
+          const after = prev.slice(end);
+          
+          if (before.endsWith(' ')) {
+            before = before.trimEnd();
+            const lastChar = before.slice(-1);
+            if (/[+\-×÷*/]/.test(lastChar)) {
+              before = before.slice(0, -1).trimEnd();
+            }
+          } else {
+            before = before.slice(0, -1);
+          }
+          
+          const newEq = before + after;
+          setTimeout(() => input.setSelectionRange(before.length, before.length), 0);
+          return newEq === '' ? '0' : newEq;
+        } else if (start !== end) {
+          const newEq = prev.slice(0, start) + prev.slice(end);
+          setTimeout(() => input.setSelectionRange(start, start), 0);
+          return newEq === '' ? '0' : newEq;
+        }
+        return prev;
+      });
+    } else {
+      setEquation(prev => prev.length > 1 ? prev.trimEnd().slice(0, -1).trimEnd() : '0');
+    }
   };
 
   // Live Result Preview (Hiện mờ mờ kết quả khi đang gõ)
@@ -160,61 +235,61 @@ export default function CalculatorApp({ isOpen, onClose }: CalculatorAppProps) {
   return (
     <AnimatePresence>
       {isOpen && (
-        <div ref={constraintsRef} className="fixed inset-0 z-[100] pointer-events-none px-4 py-6 flex items-center justify-center">
+        <div ref={constraintsRef} className="fixed inset-0 z-[100] pointer-events-none p-2 sm:p-4 flex items-center justify-center overflow-hidden">
           
-          {/* 1. VẬT THỂ ẨN (PROXY): Nhận thao tác kéo thả 1:1 để tính toán giới hạn */}
-          <motion.div
-            drag
-            dragConstraints={constraintsRef}
-            dragElastic={0.1}
-            dragTransition={{ power: 0.2, timeConstant: 200 }}
-            dragControls={dragControls}
-            dragListener={false}
-            style={{ x: dragX, y: dragY, width: 320, height: 540, position: 'absolute', opacity: 0, pointerEvents: 'none' }}
-          />
+            {/* 1. VẬT THỂ ẨN (PROXY) */}
+            <motion.div
+              drag
+              dragConstraints={constraintsRef}
+              dragElastic={0.1}
+              dragTransition={{ power: 0.2, timeConstant: 200 }}
+              dragControls={dragControls}
+              dragListener={false}
+              dragMomentum={!isMobile}
+              style={{ x: dragX, y: dragY, position: 'absolute', opacity: 0, pointerEvents: 'none' }}
+              className="w-full max-w-[320px] h-[580px] max-h-[90dvh]"
+            />
 
-          {/* 2. GIAO DIỆN THẬT: Trôi theo vật thể ẩn bằng lò xo (Spring) */}
+          {/* 2. GIAO DIỆN THẬT */}
           <motion.div
-            style={{ x: smoothX, y: smoothY, willChange: "transform" }}
+            style={{ x: isMobile ? dragX : smoothX, y: isMobile ? dragY : smoothY, willChange: "transform" }}
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
-            transition={{ type: "spring", stiffness: 400, damping: 28 }}
-            className="relative w-full max-w-[320px] bg-gray-900/95 backdrop-blur-xl border border-white/20 rounded-[2rem] shadow-[0_25px_50px_rgba(0,0,0,0.5)] overflow-hidden pointer-events-auto cursor-default select-none"
+            transition={isMobile ? { duration: 0.1 } : { type: "spring", stiffness: 400, damping: 28 }}
+            className="absolute sm:relative w-full max-w-[320px] h-[580px] max-h-[90dvh] m-auto bg-gray-900/95 backdrop-blur-xl border border-white/20 rounded-[2rem] shadow-[0_25px_50px_rgba(0,0,0,0.5)] overflow-hidden pointer-events-auto cursor-default select-none flex flex-col"
           >
-            {/* Header - Vùng được phép cầm để kéo */}
+            {/* Header */}
             <div 
               onPointerDown={(e) => dragControls.start(e)}
-              className="relative z-[130] flex justify-between items-center p-4 pt-5 border-b border-white/5 cursor-grab active:cursor-grabbing transition-colors touch-none"
-            >
-              {/* Dấu gạch ngang báo hiệu kéo thả (Drag Handle Indicator) */}
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1.5 bg-white/20 rounded-full pointer-events-none" />
-              
-              <span className="text-white/70 font-medium px-2 text-sm tracking-wider pointer-events-none">CALCULATOR</span>
-              
-              <div className="flex items-center gap-2">
-                <motion.button 
-                  whileTap={{ scale: 0.85 }}
-                  onClick={() => setShowHistory(!showHistory)}
-                  className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors cursor-pointer ${showHistory ? 'bg-white/20 text-white' : 'bg-white/5 hover:bg-white/20 text-white/70 hover:text-white'}`}
-                >
-                  <History size={16} />
-                </motion.button>
-                <motion.button 
-                  whileTap={{ scale: 0.85 }}
-                  onClick={onClose}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-red-500/20 hover:bg-red-500/40 text-red-400 hover:text-red-300 transition-colors cursor-pointer"
-                >
-                  <X size={16} />
-                </motion.button>
+                className="relative z-[130] flex justify-between items-center p-4 pt-5 border-b border-white/5 cursor-grab active:cursor-grabbing transition-colors touch-none shrink-0"
+              >
+                <div className="absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1.5 bg-white/20 rounded-full pointer-events-none" />
+                <span className="text-white/70 font-medium px-2 text-sm tracking-wider pointer-events-none">CALCULATOR</span>
+                <div className="flex items-center gap-2">
+                  <motion.button 
+                    whileTap={{ scale: 0.85 }}
+                    onClick={() => setShowHistory(!showHistory)}
+                    className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors cursor-pointer ${showHistory ? 'bg-white/20 text-white' : 'bg-white/5 hover:bg-white/20 text-white/70 hover:text-white'}`}
+                  >
+                    <History size={16} />
+                  </motion.button>
+                  <motion.button 
+                    whileTap={{ scale: 0.85 }}
+                    onClick={onClose}
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-red-500/20 hover:bg-red-500/40 text-red-400 hover:text-red-300 transition-colors cursor-pointer"
+                  >
+                    <X size={16} />
+                  </motion.button>
+                </div>
               </div>
-            </div>
 
-            {/* KHU VỰC HIỂN THỊ VÀ BÀN PHÍM (Được che bởi Lịch sử) */}
-            <div className="relative flex-1 flex flex-col">
+              {/* KHU VỰC HIỂN THỊ VÀ BÀN PHÍM */}
+            <div className="relative flex-1 flex flex-col min-h-0">
               {/* Display Screen */}
-              <div className="px-5 py-6 flex items-center justify-between gap-4 h-[110px]">
+              <div className="px-5 py-3 flex items-center justify-between gap-4 h-[20%] min-h-[70px] max-h-[110px] shrink-0">
                 <input
+                  ref={inputRef}
                   type="text"
                   inputMode="decimal"
                   value={equation}
@@ -293,7 +368,7 @@ export default function CalculatorApp({ isOpen, onClose }: CalculatorAppProps) {
               </div>
 
               {/* Keypad */}
-              <div className="p-3 bg-white/5 grid grid-cols-4 gap-2">
+              <div className="p-3 bg-white/5 flex-1 grid grid-cols-4 gap-2 overflow-y-auto overscroll-contain">
                 <CalcBtn onClick={clear} variant="danger">AC</CalcBtn>
                 <CalcBtn onClick={toggleSign} variant="info">+/-</CalcBtn>
                 <CalcBtn onClick={deleteNumber} variant="warning"><Delete size={20} /></CalcBtn>
@@ -319,11 +394,11 @@ export default function CalculatorApp({ isOpen, onClose }: CalculatorAppProps) {
                 <CalcBtn onClick={calculate} variant="primary"><Equal size={20} /></CalcBtn>
               </div>
 
-              {/* Bảng Lịch sử (Trượt lên che toàn bộ nội dung bên dưới Header) */}
+              {/* Bảng Lịch sử */}
               <AnimatePresence>
                 {showHistory && (
                   <>
-                    {/* Lớp phủ vô hình bắt click ngoài (Click-outside Overlay) */}
+                    {/* Lớp phủ vô hình bắt click ngoài */}
                     <div 
                       className="fixed inset-0 z-[120] pointer-events-auto" 
                       onClick={(e) => {
@@ -335,24 +410,23 @@ export default function CalculatorApp({ isOpen, onClose }: CalculatorAppProps) {
                     <motion.div
                       drag="y"
                       dragControls={historyDragControls}
-                      dragListener={false} // Chặn việc chạm vào danh sách cũng bị kéo, chỉ kéo khi chạm vào thanh nắm
+                      dragListener={false}
+                      dragMomentum={!isMobile}
                       dragConstraints={{ top: 0, bottom: 0 }}
-                      dragElastic={{ top: 0, bottom: 0.8 }} // Tạo độ đàn hồi khi kéo xuống
+                      dragElastic={{ top: 0, bottom: 0.8 }}
                       onDragEnd={(e, info) => {
-                        // Kéo xuống đến khi chỉ còn 2/9 bảng (~ 280px) hoặc vuốt cực mạnh
-                        if (info.offset.y > 280 || info.velocity.y > 800) {
+                        if (info.offset.y > 400) {
                           setShowHistory(false);
                         }
                       }}
-                      initial={{ y: "100%", opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      exit={{ y: "100%", opacity: 0 }}
-                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                      initial={{ y: "100%" }}
+                      animate={{ y: 0 }}
+                      exit={{ y: "100%" }}
+                      transition={isMobile ? { duration: 0.1 } : { type: "spring", stiffness: 300, damping: 30 }}
                       className="absolute inset-0 z-[130] bg-gray-900/95 backdrop-blur-2xl border-t border-white/10 p-4 pt-10 overflow-y-auto flex flex-col gap-2 overscroll-contain [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-                      onClick={(e) => e.stopPropagation()} // Chặn click xuyên qua bảng lịch sử
-                      onWheel={(e) => e.stopPropagation()} // Bắt cuộn chuột (scroll) để ưu tiên cuộn lịch sử
+                      onClick={(e) => e.stopPropagation()}
+                      onWheel={(e) => e.stopPropagation()}
                     >
-                      {/* Thanh nắm kéo (Drag Handle) */}
                       <div 
                         className="absolute top-0 left-0 right-0 h-10 flex items-center justify-center cursor-grab active:cursor-grabbing z-10 touch-none"
                         onPointerDown={(e) => historyDragControls.start(e)}
@@ -362,14 +436,14 @@ export default function CalculatorApp({ isOpen, onClose }: CalculatorAppProps) {
                       {history.length === 0 ? (
                         <div className="flex-1 flex flex-col items-center justify-center text-white/30 text-sm gap-2">
                           <History size={32} className="opacity-50" />
-                          <span>Chưa có lịch sử tính toán</span>
+                          <span>No calculation history</span>
                         </div>
                       ) : (
                         <>
                           <div className="flex justify-between items-center mb-2">
-                            <span className="text-white/50 text-xs font-medium uppercase tracking-wider">Lịch sử</span>
+                            <span className="text-white/50 text-xs font-medium uppercase tracking-wider">History</span>
                             <button onClick={() => setHistory([])} className="text-xs text-red-400 hover:text-red-300 transition-colors bg-red-500/10 hover:bg-red-500/20 px-3 py-1 rounded-full">
-                              Xóa tất cả
+                              Clear All
                             </button>
                           </div>
                           {history.map((item, idx) => (
@@ -393,7 +467,7 @@ export default function CalculatorApp({ isOpen, onClose }: CalculatorAppProps) {
                                   setHistory(prev => prev.filter((_, i) => i !== idx));
                                 }}
                                 className="p-2 text-white/40 active:text-red-400 md:hover:text-red-400 active:bg-red-500/20 md:hover:bg-red-500/20 rounded-full transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100"
-                                title="Xóa phép tính này"
+                                title="Delete this calculation"
                               >
                                 <X size={16} />
                               </button>
@@ -414,7 +488,7 @@ export default function CalculatorApp({ isOpen, onClose }: CalculatorAppProps) {
 }
 
 function CalcBtn({ onClick, children, variant = 'default', className = '' }: any) {
-  const baseStyle = "flex items-center justify-center rounded-2xl text-xl font-medium transition-all duration-200 shadow-sm active:scale-90 hover:scale-105 h-16 sm:h-14 cursor-pointer";
+  const baseStyle = "flex items-center justify-center rounded-2xl text-xl font-medium transition-all duration-200 shadow-sm active:scale-90 hover:scale-105 h-full min-h-[40px] sm:min-h-[48px] cursor-pointer";
   const variants = {
     default: "bg-white/10 hover:bg-white/20 text-white",
     secondary: "bg-gray-500/20 hover:bg-gray-400/40 text-gray-200",
@@ -428,8 +502,13 @@ function CalcBtn({ onClick, children, variant = 'default', className = '' }: any
     add: "bg-emerald-500 hover:bg-emerald-400 text-white shadow-emerald-500/20",
   };
   return (
-    <button onClick={onClick} className={`${baseStyle} ${variants[variant as keyof typeof variants]} ${className}`}>
+    <motion.button
+      whileTap={{ scale: 0.9 }}
+      onClick={onClick}
+      onPointerDown={(e) => e.preventDefault()}
+      className={`${baseStyle} ${variants[variant as keyof typeof variants]} ${className}`}
+    >
       {children}
-    </button>
+    </motion.button>
   );
 }

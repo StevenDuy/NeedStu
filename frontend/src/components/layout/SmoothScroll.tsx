@@ -2,13 +2,18 @@
 
 import React, { useEffect } from 'react';
 import Lenis from 'lenis';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 export default function SmoothScroll({ children }: { children: React.ReactNode }) {
+  const isMobile = useIsMobile();
+
   useEffect(() => {
-    // Khởi tạo thư viện cuộn mượt (Lenis)
+    // Bỏ cuộn chuột mượt hoàn toàn trên Mobile
+    if (isMobile) return;
+
     const lenis = new Lenis({
-      duration: 1.2, // Thời gian trượt (càng cao càng mượt/trì hoãn)
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), // Công thức toán học tạo độ nảy như iOS
+      duration: 1.2,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       orientation: 'vertical',
       gestureOrientation: 'vertical',
       smoothWheel: true,
@@ -16,7 +21,6 @@ export default function SmoothScroll({ children }: { children: React.ReactNode }
       touchMultiplier: 2,
     });
 
-    // Hàm cập nhật frame liên tục
     function raf(time: number) {
       lenis.raf(time);
       requestAnimationFrame(raf);
@@ -24,11 +28,10 @@ export default function SmoothScroll({ children }: { children: React.ReactNode }
 
     requestAnimationFrame(raf);
 
-    // Dọn dẹp bộ nhớ khi chuyển trang
     return () => {
       lenis.destroy();
     };
-  }, []);
+  }, [isMobile]);
 
   return <>{children}</>;
 }
