@@ -7,7 +7,10 @@ export function useIsMobile() {
 
   useEffect(() => {
     const checkIsMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+      // Nhận diện Mobile/Tablet: Màn hình hẹp, màn hình quá lùn (xoay ngang), hoặc thiết bị thuần cảm ứng
+      const isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+      const isSmallScreen = window.innerWidth < 768 || window.innerHeight < 500;
+      setIsMobile(isSmallScreen || isTouch);
     };
     
     // Kiểm tra ngay lần đầu

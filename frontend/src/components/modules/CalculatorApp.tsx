@@ -35,6 +35,20 @@ export default function CalculatorApp({ isOpen, onClose }: CalculatorAppProps) {
   const smoothX = useSpring(dragX, springConfig);
   const smoothY = useSpring(dragY, springConfig);
 
+  // Reset vị trí về tâm khi đóng/mở máy tính
+  React.useEffect(() => {
+    dragX.stop();
+    dragY.stop();
+    smoothX.stop();
+    smoothY.stop();
+
+    dragX.set(0);
+    dragY.set(0);
+    smoothX.set(0);
+    smoothY.set(0);
+  }, [isOpen, dragX, dragY, smoothX, smoothY]);
+
+
   const handleNumber = (num: string) => {
     if (isCalculated) {
       setEquation(num);
@@ -233,24 +247,25 @@ export default function CalculatorApp({ isOpen, onClose }: CalculatorAppProps) {
   }, [isOpen, equation, result, isCalculated]); // Dependency array để luôn có state mới nhất
 
   return (
-    <AnimatePresence>
+    <div ref={constraintsRef} className="fixed inset-0 z-[100] pointer-events-none p-2 sm:p-4 flex items-center justify-center overflow-hidden">
       {isOpen && (
-        <div ref={constraintsRef} className="fixed inset-0 z-[100] pointer-events-none p-2 sm:p-4 flex items-center justify-center overflow-hidden">
-          
-            {/* 1. VẬT THỂ ẨN (PROXY) */}
-            <motion.div
-              drag
-              dragConstraints={constraintsRef}
-              dragElastic={0.1}
-              dragTransition={{ power: 0.2, timeConstant: 200 }}
-              dragControls={dragControls}
-              dragListener={false}
-              dragMomentum={!isMobile}
-              style={{ x: dragX, y: dragY, position: 'absolute', opacity: 0, pointerEvents: 'none' }}
-              className="w-full max-w-[320px] h-[580px] max-h-[90dvh]"
-            />
+        /* 1. VẬT THỂ ẨN (PROXY) */
+        <motion.div
+          drag
+          dragConstraints={constraintsRef}
+          dragElastic={0.1}
+          dragTransition={{ power: 0.2, timeConstant: 200 }}
+          dragControls={dragControls}
+          dragListener={false}
+          dragMomentum={!isMobile}
+          style={{ x: dragX, y: dragY, position: 'absolute', opacity: 0, pointerEvents: 'none' }}
+          className="w-full max-w-[320px] h-[580px] max-h-[90dvh]"
+        />
+      )}
 
-          {/* 2. GIAO DIỆN THẬT */}
+      <AnimatePresence>
+        {isOpen && (
+          /* 2. GIAO DIỆN THẬT */
           <motion.div
             style={{ x: isMobile ? dragX : smoothX, y: isMobile ? dragY : smoothY, willChange: "transform" }}
             initial={{ opacity: 0, scale: 0.8 }}
@@ -262,29 +277,29 @@ export default function CalculatorApp({ isOpen, onClose }: CalculatorAppProps) {
             {/* Header */}
             <div 
               onPointerDown={(e) => dragControls.start(e)}
-                className="relative z-[130] flex justify-between items-center p-4 pt-5 border-b border-white/5 cursor-grab active:cursor-grabbing transition-colors touch-none shrink-0"
-              >
-                <div className="absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1.5 bg-white/20 rounded-full pointer-events-none" />
-                <span className="text-white/70 font-medium px-2 text-sm tracking-wider pointer-events-none">CALCULATOR</span>
-                <div className="flex items-center gap-2">
-                  <motion.button 
-                    whileTap={{ scale: 0.85 }}
-                    onClick={() => setShowHistory(!showHistory)}
-                    className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors cursor-pointer ${showHistory ? 'bg-white/20 text-white' : 'bg-white/5 hover:bg-white/20 text-white/70 hover:text-white'}`}
-                  >
-                    <History size={16} />
-                  </motion.button>
-                  <motion.button 
-                    whileTap={{ scale: 0.85 }}
-                    onClick={onClose}
-                    className="w-8 h-8 flex items-center justify-center rounded-full bg-red-500/20 hover:bg-red-500/40 text-red-400 hover:text-red-300 transition-colors cursor-pointer"
-                  >
-                    <X size={16} />
-                  </motion.button>
-                </div>
+              className="relative z-[130] flex justify-between items-center p-4 pt-5 border-b border-white/5 cursor-grab active:cursor-grabbing transition-colors touch-none shrink-0"
+            >
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1.5 bg-white/20 rounded-full pointer-events-none" />
+              <span className="text-white/70 font-medium px-2 text-sm tracking-wider pointer-events-none">CALCULATOR</span>
+              <div className="flex items-center gap-2">
+                <motion.button 
+                  whileTap={{ scale: 0.85 }}
+                  onClick={() => setShowHistory(!showHistory)}
+                  className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors cursor-pointer ${showHistory ? 'bg-white/20 text-white' : 'bg-white/5 hover:bg-white/20 text-white/70 hover:text-white'}`}
+                >
+                  <History size={16} />
+                </motion.button>
+                <motion.button 
+                  whileTap={{ scale: 0.85 }}
+                  onClick={onClose}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-red-500/20 hover:bg-red-500/40 text-red-400 hover:text-red-300 transition-colors cursor-pointer"
+                >
+                  <X size={16} />
+                </motion.button>
               </div>
+            </div>
 
-              {/* KHU VỰC HIỂN THỊ VÀ BÀN PHÍM */}
+            {/* KHU VỰC HIỂN THỊ VÀ BÀN PHÍM */}
             <div className="relative flex-1 flex flex-col min-h-0">
               {/* Display Screen */}
               <div className="px-5 py-3 flex items-center justify-between gap-4 h-[20%] min-h-[70px] max-h-[110px] shrink-0">
@@ -481,9 +496,9 @@ export default function CalculatorApp({ isOpen, onClose }: CalculatorAppProps) {
               </AnimatePresence>
             </div>
           </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
