@@ -20,15 +20,43 @@ foreach ($port in $ports) {
     }
 }
 
-Write-Host "[1/2] Starting Backend..." -ForegroundColor Yellow
-# Dùng Start-Process để mở tab/cửa sổ mới, giúp bạn dễ theo dõi lỗi của Backend riêng biệt
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd backend; npm run dev"
+Write-Host "`n[1/3] Reading database configuration..." -ForegroundColor Yellow
+$envPath = "backend/.env"
+$dbHost = "127.0.0.1"
+$dbPort = "3306"
+$dbUser = "root"
+$dbName = "needstu"
 
-Write-Host "[2/2] Starting Frontend..." -ForegroundColor Green
-# Tương tự, mở tab/cửa sổ mới cho Frontend
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd frontend; npm run dev"
+if (Test-Path $envPath) {
+    Get-Content $envPath | ForEach-Object {
+        if ($_ -match "^DB_HOST=(.*)$") { $dbHost = $Matches[1].Trim() }
+        if ($_ -match "^DB_PORT=(.*)$") { $dbPort = $Matches[1].Trim() }
+        if ($_ -match "^DB_USER=(.*)$") { $dbUser = $Matches[1].Trim() }
+        if ($_ -match "^DB_NAME=(.*)$") { $dbName = $Matches[1].Trim() }
+    }
+}
+Write-Host "Database Connection: mysql://${dbUser}@${dbHost}:${dbPort}/${dbName}" -ForegroundColor Magenta
 
-Write-Host "`nCommand has been sent successfully!" -ForegroundColor Cyan
-Write-Host "You will see 2 new Terminal windows/tabs." -ForegroundColor Gray
+Write-Host "`n[2/3] Starting Backend..." -ForegroundColor Yellow
+$backendProc = Start-Process powershell -ArgumentList "-Command cd backend; npm run dev" -NoNewWindow -PassThru
+
+Write-Host "[3/3] Starting Frontend..." -ForegroundColor Green
+$frontendProc = Start-Process powershell -ArgumentList "-Command cd frontend; npm run dev" -NoNewWindow -PassThru
+
+Write-Host "`nBoth servers are running inside this terminal!" -ForegroundColor Cyan
 Write-Host "Frontend: http://localhost:3000" -ForegroundColor White
 Write-Host "Backend:  http://localhost:5000" -ForegroundColor White
+Write-Host "Press Ctrl+C to stop both servers." -ForegroundColor Yellow
+
+try {
+    # Keep the script active to stream logs and wait for Ctrl+C
+    while ($true) {
+        Start-Sleep -Seconds 1
+    }
+}
+finally {
+    Write-Host "`nStopping servers..." -ForegroundColor Red
+    if ($backendProc) { Stop-Process -Id $backendProc.Id -Force -ErrorAction SilentlyContinue }
+    if ($frontendProc) { Stop-Process -Id $frontendProc.Id -Force -ErrorAction SilentlyContinue }
+    Write-Host "Done. Both servers stopped." -ForegroundColor Gray
+}
